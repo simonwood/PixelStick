@@ -237,7 +237,7 @@ void initWifi() {
     while (WiFi.status() != WL_CONNECTED) {
         LOG_PORT.print(".");
         delay(500);
-        if (millis() - timeout > CONNECT_TIMEOUT) {
+       if (millis() - timeout > CONNECT_TIMEOUT) {
             LOG_PORT.println("");
             LOG_PORT.println(F("*** Failed to connect ***"));
             break;
@@ -265,6 +265,24 @@ void connectWifi() {
                     IPAddress(config.gateway[0], config.gateway[1], config.gateway[2], config.gateway[3])
         );
         LOG_PORT.print(F("Connecting with Static IP"));
+    }
+}
+
+void reconnectWifi()
+{
+    connectWifi();
+    uint32_t timeout = millis();
+    while (WiFi.status() != WL_CONNECTED) 
+    {
+        LOG_PORT.print(".");
+        delay(500);
+        if (millis() - timeout > CONNECT_TIMEOUT) 
+        {
+            LOG_PORT.println("");
+            LOG_PORT.println(F("*** Failed to connect ***"));
+            wifiTicker.once(5, reconnectWifi);
+            break;
+        }
     }
 }
 
@@ -301,7 +319,7 @@ void onWiFiDisconnect(const WiFiEventStationModeDisconnected &event) {
 
     // Pause MQTT reconnect while WiFi is reconnecting
     mqttTicker.detach();
-    wifiTicker.once(2, connectWifi);
+    wifiTicker.once(5, reconnectWifi);
 }
 
 // Subscribe to "n" universes, starting at "universe"
