@@ -57,7 +57,7 @@ gulp.task('clean', function() {
 });
 
 /* Markdown to HTML Task */
-gulp.task('md', function() {
+gulp.task('md', function(done) {
     gulp.src('README.md')
         .pipe(plumber())
         .pipe(rename('ESPixelStick.html'))
@@ -73,24 +73,25 @@ gulp.task('md', function() {
         .pipe(rename('README.html'))
         .pipe(markdown())
         .pipe(gulp.dest('dist'));
+    done();
 });
 
 /* Travis specific stuff */
-gulp.task('travis', function() {
+gulp.task('travis', function(done) {
     gulp.src(['travis/travis.md', 'dist/README.md'])
         .pipe(plumber())
         .pipe(concat('README.html'))
         .pipe(markdown())
         .pipe(gulp.dest('dist'));
+    done();
 });
 
 /* Watch Task */
 gulp.task('watch', function() {
-    gulp.watch('html/*.html', ['html']);
-    gulp.watch('html/*.htm', ['html']);
-    gulp.watch('html/**/*.css', ['css']);
-    gulp.watch('html/**/*.js', ['js']);
+    gulp.watch('html/*.html', gulp.series('html'));
+    gulp.watch('html/**/*.css', gulp.series('css'));
+    gulp.watch('html/**/*.js', gulp.series('js'));
 });
 
 /* Default Task */
-gulp.task('default', ['clean', 'html', 'css', 'js', 'image']);
+gulp.task('default', gulp.series(['clean', 'html', 'css', 'js', 'image']));

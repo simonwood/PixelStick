@@ -200,6 +200,7 @@ void setup() {
     if (digitalRead(0) == 0)
     {
       // button pressed - do ap_config
+        digitalWrite(5, 1);
         LOG_PORT.println(F("*** FAILED TO ASSOCIATE WITH AP, GOING SOFTAP ***"));
         WiFi.mode(WIFI_AP);
         String ssid = "ESPixelStick " + String(config.hostname);
@@ -216,6 +217,7 @@ void setup() {
           if (digitalRead(0) == 0)
           {
             // button pressed - do ap_config
+            digitalWrite(5, 1);
               LOG_PORT.println(F("*** FAILED TO ASSOCIATE WITH AP, GOING SOFTAP ***"));
               WiFi.mode(WIFI_AP);
               String ssid = "ESPixelStick " + String(config.hostname);
