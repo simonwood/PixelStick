@@ -1,12 +1,12 @@
 {
   "network": {
-    "ssid": "",
-    "passphrase": "",
+    "ssid": "2429Master",
+    "passphrase": "2429Shared",
     "ip": [
       192,
       168,
       1,
-      10
+      114
     ],
     "netmask": [
       255,
@@ -20,19 +20,19 @@
       1,
       1
     ],
-    "dhcp": true,
+    "dhcp": false,
     "ap_fallback": true
   },
 
   "device": {
-    "id": "ESPixelStick"
+    "id": "ESPixelStick-2"
   },
 
   "e131": {
-    "universe": 1,
-    "universe_limit": 512,
+    "universe": 14,
+    "universe_limit": 510,
     "channel_start": 1,
-    "channel_count": 512,
+    "channel_count": 1200,
     "multicast": false
   },
 

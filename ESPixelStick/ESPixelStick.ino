@@ -1,3 +1,32 @@
+#include <AsyncEventSource.h>
+#include <AsyncJson.h>
+#include <AsyncWebSocket.h>
+#include <ESPAsyncWebServer.h>
+#include <SPIFFSEditor.h>
+#include <StringArray.h>
+#include <WebAuthentication.h>
+#include <WebHandlerImpl.h>
+#include <WebResponseImpl.h>
+
+#include <BearSSLHelpers.h>
+#include <CertStoreBearSSL.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266WiFiAP.h>
+#include <ESP8266WiFiGeneric.h>
+#include <ESP8266WiFiMulti.h>
+#include <ESP8266WiFiScan.h>
+#include <ESP8266WiFiSTA.h>
+#include <ESP8266WiFiType.h>
+#include <WiFiClient.h>
+#include <WiFiClientSecure.h>
+#include <WiFiClientSecureAxTLS.h>
+#include <WiFiClientSecureBearSSL.h>
+#include <WiFiServer.h>
+#include <WiFiServerSecure.h>
+#include <WiFiServerSecureAxTLS.h>
+#include <WiFiServerSecureBearSSL.h>
+#include <WiFiUdp.h>
+
 #include <ArduinoJson.h>
 
 /*
@@ -22,10 +51,6 @@
 /*****************************************/
 /*        BEGIN - Configuration          */
 /*****************************************/
-
-/* Fallback configuration if config.json is empty or fails */
-const char ssid[] = "fw_family";
-const char passphrase[] = "flyboy_home_1039";
 
 /*****************************************/
 /*         END - Configuration           */
@@ -122,6 +147,7 @@ void setup() {
 
     // Initial pin states
     pinMode(DATA_PIN, OUTPUT);
+    pinMode(5, OUTPUT);
     digitalWrite(DATA_PIN, LOW);
 
     // Setup serial log port
@@ -168,25 +194,39 @@ void setup() {
     }
 
     // Fallback to default SSID and passphrase if we fail to connect
-    initWifi();
-    if (WiFi.status() != WL_CONNECTED) {
-        LOG_PORT.println(F("*** Timeout - Reverting to default SSID ***"));
-        config.ssid = ssid;
-        config.passphrase = passphrase;
-        initWifi();
+     LOG_PORT.println(F("SW1"));
+    pinMode(0, INPUT_PULLUP);
+    delay(1000);
+    if (digitalRead(0) == 0)
+    {
+      // button pressed - do ap_config
+        LOG_PORT.println(F("*** FAILED TO ASSOCIATE WITH AP, GOING SOFTAP ***"));
+        WiFi.mode(WIFI_AP);
+        String ssid = "ESPixelStick " + String(config.hostname);
+        WiFi.softAP(ssid.c_str());
     }
+    else
+    {    
+      initWifi();
 
-    // If we fail again, go SoftAP or reboot
-    if (WiFi.status() != WL_CONNECTED) {
-        if (config.ap_fallback) {
-            LOG_PORT.println(F("*** FAILED TO ASSOCIATE WITH AP, GOING SOFTAP ***"));
-            WiFi.mode(WIFI_AP);
-            String ssid = "ESPixelStick " + String(config.hostname);
-            WiFi.softAP(ssid.c_str());
-        } else {
-            LOG_PORT.println(F("*** FAILED TO ASSOCIATE WITH AP, REBOOTING ***"));
-            ESP.restart();
-        }
+      // Colin mod for restart protection
+  
+      while (WiFi.status() != WL_CONNECTED) 
+      {
+          if (digitalRead(0) == 0)
+          {
+            // button pressed - do ap_config
+              LOG_PORT.println(F("*** FAILED TO ASSOCIATE WITH AP, GOING SOFTAP ***"));
+              WiFi.mode(WIFI_AP);
+              String ssid = "ESPixelStick " + String(config.hostname);
+              WiFi.softAP(ssid.c_str());
+              break;
+          }
+          else
+          {
+            initWifi();
+          }
+      }
     }
 
     wifiDisconnectHandler = WiFi.onStationModeDisconnected(onWiFiDisconnect);
@@ -210,6 +250,7 @@ void setup() {
             LOG_PORT.println(F("*** UNICAST INIT FAILED ****"));
         }
     }
+     LOG_PORT.println(F("SW8"));
 
     // Configure the outputs
 #if defined (ESPS_MODE_PIXEL)
@@ -228,21 +269,21 @@ void setup() {
 /////////////////////////////////////////////////////////
 
 void initWifi() {
+
     // Switch to station mode and disconnect just in case
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
-
     connectWifi();
-    uint32_t timeout = millis();
+/*    uint32_t timeout = millis();
     while (WiFi.status() != WL_CONNECTED) {
-        LOG_PORT.print(".");
+        LOG_PORT.print(",");
         delay(500);
        if (millis() - timeout > CONNECT_TIMEOUT) {
             LOG_PORT.println("");
             LOG_PORT.println(F("*** Failed to connect ***"));
             break;
         }
-    }
+    }*/
 }
 
 void connectWifi() {
@@ -255,6 +296,11 @@ void connectWifi() {
     LOG_PORT.println(config.hostname);
 
     WiFi.begin(config.ssid.c_str(), config.passphrase.c_str());
+    WiFi.waitForConnectResult();
+    if (WiFi.status() != WL_CONNECTED)
+    {
+      return;
+    }
     if (config.dhcp) {
         LOG_PORT.print(F("Connecting with DHCP"));
     } else {
@@ -270,19 +316,13 @@ void connectWifi() {
 
 void reconnectWifi()
 {
-    connectWifi();
-    uint32_t timeout = millis();
-    while (WiFi.status() != WL_CONNECTED) 
+  ESP.restart();
+  return;
+  
+    initWifi();
+    if (WiFi.status() != WL_CONNECTED) 
     {
-        LOG_PORT.print(".");
-        delay(500);
-        if (millis() - timeout > CONNECT_TIMEOUT) 
-        {
-            LOG_PORT.println("");
-            LOG_PORT.println(F("*** Failed to connect ***"));
-            wifiTicker.once(5, reconnectWifi);
-            break;
-        }
+      wifiTicker.once(5, reconnectWifi);
     }
 }
 
@@ -314,8 +354,10 @@ void onWifiConnect(const WiFiEventStationModeGotIP &event) {
     }
 }
 
-void onWiFiDisconnect(const WiFiEventStationModeDisconnected &event) {
+void onWiFiDisconnect(const WiFiEventStationModeDisconnected &event) 
+{
     LOG_PORT.println(F("*** WiFi Disconnected ***"));
+    WiFi.disconnect();
 
     // Pause MQTT reconnect while WiFi is reconnecting
     mqttTicker.detach();
@@ -650,11 +692,11 @@ void dsNetworkConfig(JsonObject &json) {
     // Fallback to embedded ssid and passphrase if null in config
     config.ssid = json["network"]["ssid"].as<String>();
     if (!config.ssid.length())
-        config.ssid = ssid;
+        config.ssid = "def";
 
     config.passphrase = json["network"]["passphrase"].as<String>();
     if (!config.passphrase.length())
-        config.passphrase = passphrase;
+        config.passphrase = "def";
 
     // Network
     for (int i = 0; i < 4; i++) {
@@ -718,8 +760,8 @@ void loadConfig() {
     File file = SPIFFS.open(CONFIG_FILE, "r");
     if (!file) {
         LOG_PORT.println(F("- No configuration file found."));
-        config.ssid = ssid;
-        config.passphrase = passphrase;
+        config.ssid = "def";
+        config.passphrase = "def";
         saveConfig();
     } else {
         // Parse CONFIG_FILE json
@@ -898,6 +940,11 @@ void loop() {
                         buffloc = config.channel_start - 1;
                     }
 
+                    static byte nLed = 0;
+                    digitalWrite(5, nLed == 0);
+                    nLed++;
+                    if (nLed > 4) nLed = 0;
+
                     for (int i = dataStart; i < dataStop; i++) {
     #if defined(ESPS_MODE_PIXEL)
                         pixels.setValue(i, data[buffloc]);
@@ -933,4 +980,3 @@ void loop() {
         while (LOG_PORT.read() >= 0);
     }
 }
-
